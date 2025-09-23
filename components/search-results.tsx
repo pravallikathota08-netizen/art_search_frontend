@@ -39,13 +39,13 @@ export function SearchResults({ results, searchImage, loading }: SearchResultsPr
         <p className="text-muted-foreground">Found {results.length} similar images</p>
       </div>
 
-      {/* Original Image */}
+      {/* Original uploaded image */}
       {searchImage && (
         <Card className="p-6 glass-effect border-border/50">
           <div className="flex flex-col md:flex-row gap-6 items-center">
             <div className="flex-shrink-0">
               <img
-                src={searchImage || "/placeholder.svg"}
+                src={searchImage}
                 alt="Search query"
                 className="w-32 h-32 object-cover rounded-lg border border-border/50"
               />
@@ -53,8 +53,7 @@ export function SearchResults({ results, searchImage, loading }: SearchResultsPr
             <div>
               <h3 className="text-lg font-medium mb-2">Your Search Image</h3>
               <p className="text-muted-foreground">
-                AI is analyzing this image to find similar artworks based on style, texture, color palette, and
-                emotional expression.
+                AI is analyzing this image to find artworks with a similar color palette.
               </p>
             </div>
           </div>
@@ -63,26 +62,26 @@ export function SearchResults({ results, searchImage, loading }: SearchResultsPr
 
       {/* Results Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {results.map((result) => (
-          <Card key={result.id} className="p-4 glass-effect border-border/50 hover:border-primary/50 transition-colors">
+        {results.map((result, i) => (
+          <Card key={i} className="p-4 glass-effect border-border/50 hover:border-primary/50 transition-colors">
             <div className="space-y-4">
               <div className="aspect-square relative overflow-hidden rounded-lg">
                 <img
-                  src={result.image_url || "/placeholder.svg"}
+                  src={result.imageUrl || "/placeholder.svg"}
                   alt="Similar artwork"
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute top-2 right-2">
                   <Badge variant="secondary" className="glass-effect">
-                    {Math.round(result.similarity_score * 100)}% match
+                    {Math.round(result.similarity * 100)}% match
                   </Badge>
                 </div>
               </div>
 
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-1">
-                  {result.tags.map((tag) => (
-                    <Badge key={tag} variant="outline" className="text-xs">
+                  {result.tags.map((tag, t) => (
+                    <Badge key={t} variant="outline" className="text-xs">
                       {tag}
                     </Badge>
                   ))}
@@ -90,7 +89,7 @@ export function SearchResults({ results, searchImage, loading }: SearchResultsPr
 
                 <div>
                   <h4 className="font-medium text-sm mb-1">Why this matched:</h4>
-                  <p className="text-sm text-muted-foreground">{result.explanation}</p>
+                  <p className="text-sm text-muted-foreground">{result.matchReason}</p>
                 </div>
               </div>
             </div>

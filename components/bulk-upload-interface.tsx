@@ -70,30 +70,40 @@ export function BulkUploadInterface() {
       })
 
       // Update all files to uploading status
-      setFiles((prev) => prev.map((f) => ({ ...f, status: "uploading" as const })))
+      setFiles((prev) =>
+        prev.map((f) => ({ ...f, status: "uploading" as const }))
+      )
 
-      // Simulate upload progress
-      for (let progress = 0; progress <= 100; progress += 10) {
-        await new Promise((resolve) => setTimeout(resolve, 200))
-        setFiles((prev) => prev.map((f) => ({ ...f, progress })))
-      }
+      // Get token from localStorage
+      const token = localStorage.getItem("auth-token")
 
       const response = await fetch("http://127.0.0.1:8000/upload/bulk/", {
         method: "POST",
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
         body: formData,
       })
 
       if (response.ok) {
-        setFiles((prev) => prev.map((f) => ({ ...f, status: "success" as const, progress: 100 })))
+        setFiles((prev) =>
+          prev.map((f) => ({
+            ...f,
+            status: "success" as const,
+            progress: 100,
+          }))
+        )
         setUploadComplete(true)
       } else {
-        setFiles((prev) => prev.map((f) => ({ ...f, status: "error" as const })))
+        setFiles((prev) =>
+          prev.map((f) => ({ ...f, status: "error" as const }))
+        )
       }
     } catch (error) {
       console.error("Upload error:", error)
-      // For demo purposes, simulate success
-      setFiles((prev) => prev.map((f) => ({ ...f, status: "success" as const, progress: 100 })))
-      setUploadComplete(true)
+      setFiles((prev) =>
+        prev.map((f) => ({ ...f, status: "error" as const }))
+      )
     } finally {
       setUploading(false)
     }
@@ -106,7 +116,9 @@ export function BulkUploadInterface() {
       case "error":
         return <AlertCircle className="h-4 w-4 text-red-500" />
       case "uploading":
-        return <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+        return (
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+        )
       default:
         return <FileImage className="h-4 w-4 text-muted-foreground" />
     }
@@ -122,7 +134,9 @@ export function BulkUploadInterface() {
         <div
           {...getRootProps()}
           className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-            isDragActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+            isDragActive
+              ? "border-primary bg-primary/5"
+              : "border-border hover:border-primary/50"
           }`}
         >
           <input {...getInputProps()} />
@@ -131,9 +145,12 @@ export function BulkUploadInterface() {
               <Upload className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <p className="text-lg font-medium">{isDragActive ? "Drop your images here" : "Upload multiple images"}</p>
+              <p className="text-lg font-medium">
+                {isDragActive ? "Drop your images here" : "Upload multiple images"}
+              </p>
               <p className="text-sm text-muted-foreground mt-1">
-                Drag and drop or click to select multiple files • PNG, JPG, GIF up to 10MB each
+                Drag and drop or click to select multiple files • PNG, JPG, GIF up
+                to 10MB each
               </p>
             </div>
           </div>
@@ -145,15 +162,25 @@ export function BulkUploadInterface() {
         <Card className="p-6 glass-effect border-border/50">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium">Selected Files ({files.length})</h3>
-              <Button variant="outline" size="sm" onClick={clearAllFiles} disabled={uploading}>
+              <h3 className="text-lg font-medium">
+                Selected Files ({files.length})
+              </h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearAllFiles}
+                disabled={uploading}
+              >
                 Clear All
               </Button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
               {files.map((fileItem) => (
-                <div key={fileItem.id} className="relative group border border-border/50 rounded-lg p-3 glass-effect">
+                <div
+                  key={fileItem.id}
+                  className="relative group border border-border/50 rounded-lg p-3 glass-effect"
+                >
                   <div className="flex items-center space-x-3">
                     <img
                       src={fileItem.preview || "/placeholder.svg"}
@@ -161,11 +188,15 @@ export function BulkUploadInterface() {
                       className="w-12 h-12 object-cover rounded"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{fileItem.file.name}</p>
+                      <p className="text-sm font-medium truncate">
+                        {fileItem.file.name}
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         {(fileItem.file.size / 1024 / 1024).toFixed(2)} MB
                       </p>
-                      {fileItem.status === "uploading" && <Progress value={fileItem.progress} className="mt-1 h-1" />}
+                      {fileItem.status === "uploading" && (
+                        <Progress value={fileItem.progress} className="mt-1 h-1" />
+                      )}
                     </div>
                     <div className="flex items-center space-x-2">
                       {getStatusIcon(fileItem.status)}
@@ -187,7 +218,12 @@ export function BulkUploadInterface() {
 
             {/* Upload Button */}
             <div className="flex justify-center pt-4">
-              <Button onClick={uploadFiles} disabled={files.length === 0 || uploading} size="lg" className="px-8">
+              <Button
+                onClick={uploadFiles}
+                disabled={files.length === 0 || uploading}
+                size="lg"
+                className="px-8"
+              >
                 {uploading ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground mr-2"></div>
@@ -214,7 +250,8 @@ export function BulkUploadInterface() {
                 {errorCount > 0 && `, ${errorCount} files failed`}
               </p>
               <p className="text-sm text-muted-foreground">
-                Your images are now being processed and will be available for search shortly.
+                Your images are now being processed and will be available for search
+                shortly.
               </p>
             </div>
           </AlertDescription>

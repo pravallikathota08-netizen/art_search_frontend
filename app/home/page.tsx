@@ -8,11 +8,10 @@ import { SearchFiltersComponent } from "@/components/search-filters"
 import { Navigation } from "@/components/navigation"
 
 export interface SearchResult {
-  id: string
-  image_url: string
+  imageUrl: string
   tags: string[]
-  explanation: string
-  similarity_score: number
+  matchReason: string
+  similarity: number
 }
 
 export default function HomePage() {
@@ -26,70 +25,83 @@ export default function HomePage() {
     emotion: true,
   })
 
-  const handleSearch = async (file: File) => {
-    setLoading(true)
-    setSearchImage(URL.createObjectURL(file))
+  // 🎨 Palette state
+  const [colors, setColors] = useState<string[]>([])
+  const [selectedColor, setSelectedColor] = useState<string | null>(null)
+  const [lastFile, setLastFile] = useState<File | null>(null)
+
+  // 🔑 Token from localStorage
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("auth-token") : null
+
+  // Extract palette from uploaded image
+  const handleExtractPalette = async (file: File) => {
+    if (!token) return
+    const formData = new FormData()
+    formData.append("file", file)
 
     try {
-      const formData = new FormData()
-      formData.append("file", file)
-
-      const response = await fetch("http://127.0.0.1:8000/search/", {
+      const response = await fetch("http://127.0.0.1:8000/palette/extract", {
         method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       })
-
       if (response.ok) {
-        const results = await response.json()
-        setSearchResults(results)
+        const data = await response.json()
+        setColors(data.colors || [])
       } else {
-        console.error("Search failed:", response.statusText)
-        // For demo purposes, show mock results
-        setSearchResults([
-          {
-            id: "1",
-            image_url: "/abstract-painting-with-blue-tones.jpg",
-            tags: ["abstract", "blue", "modern", "geometric"],
-            explanation: "Similar color palette and abstract composition with geometric elements",
-            similarity_score: 0.92,
-          },
-          {
-            id: "2",
-            image_url: "/impressionist-landscape.png",
-            tags: ["impressionist", "landscape", "brushstrokes", "natural"],
-            explanation: "Matching brushstroke technique and natural color harmony",
-            similarity_score: 0.87,
-          },
-          {
-            id: "3",
-            image_url: "/minimalist-digital-art.jpg",
-            tags: ["minimalist", "digital", "clean", "contemporary"],
-            explanation: "Similar minimalist approach and contemporary aesthetic",
-            similarity_score: 0.84,
-          },
-          {
-            id: "4",
-            image_url: "/watercolor-portrait-art.jpg",
-            tags: ["watercolor", "portrait", "soft", "artistic"],
-            explanation: "Comparable texture and artistic medium characteristics",
-            similarity_score: 0.81,
-          },
-        ])
+        console.error("Palette extract failed:", response.statusText)
       }
-    } catch (error) {
-      console.error("Search error:", error)
-      // Show mock results for demo
-      setSearchResults([
-        {
-          id: "1",
-          image_url: "/abstract-painting-with-blue-tones.jpg",
-          tags: ["abstract", "blue", "modern", "geometric"],
-          explanation: "Similar color palette and abstract composition with geometric elements",
-          similarity_score: 0.92,
-        },
-      ])
-    } finally {
-      setLoading(false)
+    } catch (err) {
+      console.error("Palette error:", err)
+    }
+  }
+
+  // Run search with filters + optional color
+  // Run search with optional color
+const runSearch = async (file?: File, color?: string) => {
+  if (!token) return
+  setLoading(true)
+
+  try {
+    const formData = new FormData()
+    if (file) formData.append("file", file)
+    if (color) formData.append("selected_color", color)
+
+    const response = await fetch("http://127.0.0.1:8000/search/", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    })
+
+    if (response.ok) {
+      const results = await response.json()
+      setSearchResults(results)
+    } else {
+      console.error("Search failed:", response.statusText)
+    }
+  } catch (err) {
+    console.error("Search error:", err)
+  } finally {
+    setLoading(false)
+  }
+}
+
+  // Called when user uploads image
+  const handleSearch = async (file: File) => {
+    setLastFile(file)
+    setSearchImage(URL.createObjectURL(file))
+    await runSearch(file) // run search with uploaded image
+    await handleExtractPalette(file) // extract palette
+  }
+
+  // Called when user clicks a color
+  const handleColorClick = async (color: string) => {
+    setSelectedColor(color)
+    if (lastFile) {
+      await runSearch(lastFile, color) // search with file + color
+    } else {
+      await runSearch(undefined, color) // fallback
     }
   }
 
@@ -103,18 +115,58 @@ export default function HomePage() {
             {/* Header */}
             <div className="text-center space-y-2">
               <h1 className="text-3xl font-bold">AI Art Search</h1>
-              <p className="text-muted-foreground">Upload an image to find similar artworks and designs</p>
+              <p className="text-muted-foreground">
+                Upload an image to find similar artworks and refine by color palette, style, texture, or emotion
+              </p>
             </div>
 
-            {/* Search Interface */}
+            {/* 🎨 Palette */}
+            {colors.length > 0 && (
+              <div className="flex flex-col items-center space-y-4">
+                <h3 className="text-xl font-semibold">Extracted Color Palette</h3>
+                <div className="flex gap-4">
+                  {colors.map((color) => (
+                    <div
+                      key={color}
+                      onClick={() => handleColorClick(color)}
+                      style={{
+                        backgroundColor: color,
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "50%",
+                        border:
+                          selectedColor === color
+                            ? "3px solid black"
+                            : "1px solid gray",
+                        cursor: "pointer",
+                      }}
+                    />
+                  ))}
+                </div>
+                {selectedColor && (
+                  <p className="text-sm">Selected Color: {selectedColor}</p>
+                )}
+              </div>
+            )}
+
+            {/* Upload/Search */}
             <SearchInterface onSearch={handleSearch} loading={loading} />
 
-            {/* Search Filters */}
-            {searchResults.length > 0 && <SearchFiltersComponent filters={filters} onFiltersChange={setFilters} />}
-
-            {/* Search Results */}
+            {/* Filters */}
             {searchResults.length > 0 && (
-              <SearchResults results={searchResults} searchImage={searchImage} loading={loading} />
+              <SearchFiltersComponent
+                filters={filters}
+                onFiltersChange={setFilters}
+              />
+            )}
+
+            {/* Results */}
+            {searchResults.length > 0 && (
+              <SearchResults
+                results={searchResults}
+                searchImage={searchImage}
+                loading={loading}
+              />
             )}
           </div>
         </main>
