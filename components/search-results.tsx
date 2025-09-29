@@ -8,9 +8,23 @@ interface SearchResultsProps {
   results: SearchResult[]
   searchImage: string | null
   loading: boolean
+  filters: {
+    style: boolean
+    texture: boolean
+    colorPalette: boolean
+    emotion: boolean
+  }
+  selectedColor: string | null
 }
 
-export function SearchResults({ results, searchImage, loading }: SearchResultsProps) {
+export function SearchResults({
+  results,
+  searchImage,
+  loading,
+  filters,
+  selectedColor,
+}: SearchResultsProps) {
+  // Show loading skeletons
   if (loading) {
     return (
       <div className="space-y-6">
@@ -32,11 +46,38 @@ export function SearchResults({ results, searchImage, loading }: SearchResultsPr
     )
   }
 
+  // No results found
+  if (!results.length) {
+    return (
+      <div className="space-y-6 text-center">
+        <h2 className="text-2xl font-bold">Search Results</h2>
+        <p className="text-muted-foreground">
+          No similar images found based on selected filters.
+        </p>
+      </div>
+    )
+  }
+
+  // Build dynamic filter description
+  const activeFilters = Object.entries(filters)
+    .filter(([_, enabled]) => enabled)
+    .map(([name]) => name)
+
+  let filterText = activeFilters.join(", ")
+  if (selectedColor) {
+    filterText += filterText
+      ? ` and color ${selectedColor}`
+      : `color ${selectedColor}`
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Search Results</h2>
-        <p className="text-muted-foreground">Found {results.length} similar images</p>
+        <p className="text-muted-foreground">
+          Found {results.length} similar images
+          {filterText ? ` using filters: ${filterText}` : " (no filters applied)"}
+        </p>
       </div>
 
       {/* Original uploaded image */}
@@ -53,7 +94,10 @@ export function SearchResults({ results, searchImage, loading }: SearchResultsPr
             <div>
               <h3 className="text-lg font-medium mb-2">Your Search Image</h3>
               <p className="text-muted-foreground">
-                AI is analyzing this image to find artworks with a similar color palette.
+                AI analyzed this image
+                {filterText
+                  ? ` using filters: ${filterText}.`
+                  : " without any active filters."}
               </p>
             </div>
           </div>
@@ -63,7 +107,10 @@ export function SearchResults({ results, searchImage, loading }: SearchResultsPr
       {/* Results Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {results.map((result, i) => (
-          <Card key={i} className="p-4 glass-effect border-border/50 hover:border-primary/50 transition-colors">
+          <Card
+            key={i}
+            className="p-4 glass-effect border-border/50 hover:border-primary/50 transition-colors"
+          >
             <div className="space-y-4">
               <div className="aspect-square relative overflow-hidden rounded-lg">
                 <img
@@ -89,7 +136,9 @@ export function SearchResults({ results, searchImage, loading }: SearchResultsPr
 
                 <div>
                   <h4 className="font-medium text-sm mb-1">Why this matched:</h4>
-                  <p className="text-sm text-muted-foreground">{result.matchReason}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {result.matchReason}
+                  </p>
                 </div>
               </div>
             </div>

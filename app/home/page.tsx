@@ -6,6 +6,7 @@ import { SearchInterface } from "@/components/search-interface"
 import { SearchResults } from "@/components/search-results"
 import { SearchFiltersComponent } from "@/components/search-filters"
 import { Navigation } from "@/components/navigation"
+import { Button } from "@/components/ui/button"
 
 export interface SearchResult {
   imageUrl: string
@@ -58,51 +59,50 @@ export default function HomePage() {
   }
 
   // Run search with filters + optional color
-  // Run search with optional color
-const runSearch = async (file?: File, color?: string) => {
-  if (!token) return
-  setLoading(true)
+  const runSearch = async (file?: File, color?: string) => {
+    if (!token || !lastFile) return
+    setLoading(true)
 
-  try {
-    const formData = new FormData()
-    if (file) formData.append("file", file)
-    if (color) formData.append("selected_color", color)
+    try {
+      const formData = new FormData()
+      formData.append("file", file || lastFile)
+      formData.append("style", String(filters.style))
+      formData.append("texture", String(filters.texture))
+      formData.append("colorPalette", String(filters.colorPalette))
+      formData.append("emotion", String(filters.emotion))
+      if (color) formData.append("selected_color", color)
 
-    const response = await fetch("http://127.0.0.1:8000/search/", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData,
-    })
+      const response = await fetch("http://127.0.0.1:8000/search/", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      })
 
-    if (response.ok) {
-      const results = await response.json()
-      setSearchResults(results)
-    } else {
-      console.error("Search failed:", response.statusText)
+      if (response.ok) {
+        const results = await response.json()
+        setSearchResults(results)
+      } else {
+        console.error("Search failed:", response.statusText)
+      }
+    } catch (err) {
+      console.error("Search error:", err)
+    } finally {
+      setLoading(false)
     }
-  } catch (err) {
-    console.error("Search error:", err)
-  } finally {
-    setLoading(false)
   }
-}
 
-  // Called when user uploads image
+  // Called when user uploads image (but don’t search yet)
   const handleSearch = async (file: File) => {
     setLastFile(file)
     setSearchImage(URL.createObjectURL(file))
-    await runSearch(file) // run search with uploaded image
-    await handleExtractPalette(file) // extract palette
+    await handleExtractPalette(file) // just extract palette
+    setSearchResults([]) // clear old results until user clicks Search
   }
 
   // Called when user clicks a color
   const handleColorClick = async (color: string) => {
     setSelectedColor(color)
-    if (lastFile) {
-      await runSearch(lastFile, color) // search with file + color
-    } else {
-      await runSearch(undefined, color) // fallback
-    }
+    await runSearch(undefined, color)
   }
 
   return (
@@ -116,7 +116,7 @@ const runSearch = async (file?: File, color?: string) => {
             <div className="text-center space-y-2">
               <h1 className="text-3xl font-bold">AI Art Search</h1>
               <p className="text-muted-foreground">
-                Upload an image to find similar artworks and refine by color palette, style, texture, or emotion
+                Upload an image, choose filters, and refine by color palette, style, texture, or emotion
               </p>
             </div>
 
@@ -152,12 +152,21 @@ const runSearch = async (file?: File, color?: string) => {
             {/* Upload/Search */}
             <SearchInterface onSearch={handleSearch} loading={loading} />
 
-            {/* Filters */}
-            {searchResults.length > 0 && (
-              <SearchFiltersComponent
-                filters={filters}
-                onFiltersChange={setFilters}
-              />
+            {/* Filters + Search button */}
+            {lastFile && (
+              <div className="space-y-4">
+                <SearchFiltersComponent
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                />
+                <Button
+                  onClick={() => runSearch()}
+                  disabled={loading}
+                  className="w-full"
+                >
+                  {loading ? "Searching..." : "Search with Selected Filters"}
+                </Button>
+              </div>
             )}
 
             {/* Results */}
@@ -165,6 +174,8 @@ const runSearch = async (file?: File, color?: string) => {
               <SearchResults
                 results={searchResults}
                 searchImage={searchImage}
+                filters={filters}             
+                selectedColor={selectedColor} 
                 loading={loading}
               />
             )}

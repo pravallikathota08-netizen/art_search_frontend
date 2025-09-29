@@ -26,17 +26,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const formData = new FormData()
-      formData.append("username", username)
-      formData.append("password", password)
-
       const response = await fetch("http://127.0.0.1:8000/token", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          username,
+          password,
+        }),
       })
 
       if (response.ok) {
         const data = await response.json()
+        // Save the JWT token in localStorage
         localStorage.setItem("auth-token", data.access_token || "authenticated")
         setIsAuthenticated(true)
         return true
@@ -53,7 +56,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(false)
   }
 
-  return <AuthContext.Provider value={{ isAuthenticated, login, logout, loading }}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ isAuthenticated, login, logout, loading }}>
+      {children}
+    </AuthContext.Provider>
+  )
 }
 
 export function useAuth() {
