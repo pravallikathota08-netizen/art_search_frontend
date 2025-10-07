@@ -1,13 +1,24 @@
 "use client"
 
-import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import type { SearchResult } from "@/app/home/page"
+import React from "react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
+
+// ✅ Updated type matches backend schema
+interface SearchResult {
+  id?: number
+  filename?: string
+  filepath?: string
+  score?: number
+  message?: string
+  matchReason?: string
+  imageUrl?: string
+  similarity?: number
+}
 
 interface SearchResultsProps {
-  results: SearchResult[]
+  results: SearchResult | SearchResult[]
   searchImage: string | null
-  loading: boolean
   filters: {
     style: boolean
     texture: boolean
@@ -15,135 +26,127 @@ interface SearchResultsProps {
     emotion: boolean
   }
   selectedColor: string | null
+  loading: boolean
 }
 
-export function SearchResults({
+export const SearchResults: React.FC<SearchResultsProps> = ({
   results,
   searchImage,
-  loading,
   filters,
   selectedColor,
-}: SearchResultsProps) {
-  // Show loading skeletons
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-center">Searching...</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(6)].map((_, i) => (
-            <Card key={i} className="p-4 glass-effect border-border/50">
-              <div className="animate-pulse space-y-4">
-                <div className="aspect-square bg-muted rounded-lg"></div>
-                <div className="space-y-2">
-                  <div className="h-4 bg-muted rounded w-3/4"></div>
-                  <div className="h-3 bg-muted rounded w-1/2"></div>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
-    )
-  }
+  loading,
+}) => {
+  if (loading) return <p>🔍 Searching...</p>
+  if (!results || (Array.isArray(results) && results.length === 0)) return null
 
-  // No results found
-  if (!results.length) {
-    return (
-      <div className="space-y-6 text-center">
-        <h2 className="text-2xl font-bold">Search Results</h2>
-        <p className="text-muted-foreground">
-          No similar images found based on selected filters.
-        </p>
-      </div>
-    )
-  }
-
-  // Build dynamic filter description
-  const activeFilters = Object.entries(filters)
-    .filter(([_, enabled]) => enabled)
-    .map(([name]) => name)
-
-  let filterText = activeFilters.join(", ")
-  if (selectedColor) {
-    filterText += filterText
-      ? ` and color ${selectedColor}`
-      : `color ${selectedColor}`
-  }
+  // Normalize results into an array
+  const normalizedResults = Array.isArray(results) ? results : [results]
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Search Results</h2>
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="text-center">
+        <h2 className="text-2xl font-semibold">Search Results</h2>
         <p className="text-muted-foreground">
-          Found {results.length} similar images
-          {filterText ? ` using filters: ${filterText}` : " (no filters applied)"}
+          Found {normalizedResults.length} similar images using filters:{" "}
+          {Object.keys(filters)
+            .filter((k) => filters[k as keyof typeof filters])
+            .join(", ")}
         </p>
       </div>
 
-      {/* Original uploaded image */}
+      {/* Query Image */}
       {searchImage && (
-        <Card className="p-6 glass-effect border-border/50">
-          <div className="flex flex-col md:flex-row gap-6 items-center">
-            <div className="flex-shrink-0">
-              <img
-                src={searchImage}
-                alt="Search query"
-                className="w-32 h-32 object-cover rounded-lg border border-border/50"
-              />
-            </div>
-            <div>
-              <h3 className="text-lg font-medium mb-2">Your Search Image</h3>
-              <p className="text-muted-foreground">
-                AI analyzed this image
-                {filterText
-                  ? ` using filters: ${filterText}.`
-                  : " without any active filters."}
-              </p>
-            </div>
-          </div>
-        </Card>
+        <div className="flex flex-col items-center space-y-2">
+          <h3 className="text-lg font-medium">Search query</h3>
+          <img
+            src={searchImage}
+            alt="Search query"
+            className="w-48 h-48 object-cover rounded-md shadow-md"
+          />
+          <p className="text-sm text-muted-foreground">
+            AI analyzed this image using filters:{" "}
+            {Object.keys(filters)
+              .filter((k) => filters[k as keyof typeof filters])
+              .join(", ")}
+            .
+          </p>
+        </div>
       )}
 
-      {/* Results Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {results.map((result, i) => (
-          <Card
-            key={i}
-            className="p-4 glass-effect border-border/50 hover:border-primary/50 transition-colors"
-          >
-            <div className="space-y-4">
-              <div className="aspect-square relative overflow-hidden rounded-lg">
+      {/* ✅ Results */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {normalizedResults.map((r, i) => {
+          // Extract breakdown numbers from matchReason
+          const parts = (r.matchReason || "")
+            .split(", ")
+            .map((p) => {
+              const match = p.match(/(\w+)\s([\d.]+).*×(\d+)%/)
+              if (match) {
+                return {
+                  key: match[1],
+                  value: parseFloat(match[2]),
+                  weight: parseInt(match[3]),
+                }
+              }
+              return null
+            })
+            .filter(Boolean)
+
+          // Render result card
+          return (
+            <Card key={i} className="overflow-hidden border rounded-xl shadow-sm">
+              <CardContent className="p-4">
                 <img
-                  src={result.imageUrl || "/placeholder.svg"}
-                  alt="Similar artwork"
-                  className="w-full h-full object-cover"
+                  src={r.filepath || r.imageUrl || ""}
+                  alt={r.filename || `result-${i}`}
+                  className="rounded-lg w-full h-60 object-cover mb-3"
                 />
-                <div className="absolute top-2 right-2">
-                  <Badge variant="secondary" className="glass-effect">
-                    {Math.round(result.similarity * 100)}% match
-                  </Badge>
+                <div className="font-semibold text-gray-700">
+                  Score:{" "}
+                  {r.score
+                    ? r.score.toFixed(2)
+                    : r.similarity
+                    ? (r.similarity * 100).toFixed(2)
+                    : "N/A"}
+                  %
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex flex-wrap gap-1">
-                  {result.tags.map((tag, t) => (
-                    <Badge key={t} variant="outline" className="text-xs">
-                      {tag}
-                    </Badge>
-                  ))}
+                <div className="text-sm text-gray-500">
+                  {r.message || r.matchReason || "No details"}
                 </div>
 
-                <div>
-                  <h4 className="font-medium text-sm mb-1">Why this matched:</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {result.matchReason}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </Card>
-        ))}
+                {/* Breakdown visualization */}
+                {parts.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-sm text-gray-500">Match breakdown:</p>
+                    {parts.map((p) => (
+                      <div key={p!.key} className="space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="capitalize">{p!.key}</span>
+                          <span>
+                            {(p!.value * 100).toFixed(0)}% (×{p!.weight}%)
+                          </span>
+                        </div>
+                        <Progress
+                          value={p!.value * 100}
+                          className={
+                            p!.key === "Style"
+                              ? "bg-blue-200"
+                              : p!.key === "Texture"
+                              ? "bg-green-200"
+                              : p!.key === "Palette"
+                              ? "bg-yellow-200"
+                              : "bg-pink-200"
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
     </div>
   )

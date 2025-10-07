@@ -77,7 +77,7 @@ export function BulkUploadInterface() {
       // Get token from localStorage
       const token = localStorage.getItem("auth-token")
 
-      const response = await fetch("http://127.0.0.1:8000/upload/bulk/", {
+      const response = await fetch("http://127.0.0.1:8000/upload_bulk", {
         method: "POST",
         headers: {
           Authorization: token ? `Bearer ${token}` : "",

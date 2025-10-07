@@ -1,74 +1,77 @@
-"use client"; // required for Next.js App Router client components
-import React, { useState } from "react";
+"use client"
+
+import { useState } from "react"
+import { SearchInterface } from "./search-interface"
+import { SearchResults } from "./search-results"
+import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 
 export default function SearchImages() {
-  const [file, setFile] = useState(null);
-  const [results, setResults] = useState([]);
+  const [results, setResults] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [searchImage, setSearchImage] = useState<string | null>(null)
+  const [filters, setFilters] = useState({
+    style: false,
+    texture: false,
+    colorPalette: false,
+    emotion: false,
+  })
+  const [selectedColor, setSelectedColor] = useState<string | null>(null)
 
-  const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
-  };
-
-  const handleSearch = async () => {
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append("file", file);
-
+  const handleSearch = async (file) => {
     try {
-      const response = await fetch("http://localhost:8000/search?top_n=5", {
+      setLoading(true)
+      setSearchImage(URL.createObjectURL(file))
+
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000"
+      const token = localStorage.getItem("auth-token")
+      const formData = new FormData()
+      formData.append("file", file)
+
+      // Optional filters (sent to backend)
+      formData.append("style", String(filters.style))
+      formData.append("texture", String(filters.texture))
+      formData.append("colorPalette", String(filters.colorPalette))
+      formData.append("emotion", String(filters.emotion))
+      if (selectedColor) formData.append("selectedColor", selectedColor)
+
+      const response = await fetch(`${apiBaseUrl}/search`, {
         method: "POST",
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
         body: formData,
-      });
+      })
 
       if (!response.ok) {
-        throw new Error("Failed to fetch results");
+        throw new Error(`Search failed: ${response.statusText}`)
       }
 
-      const data = await response.json();
-      setResults(data.matches);
-    } catch (err) {
-      console.error(err);
-      alert("Error searching images. Check backend server.");
+      const data = await response.json()
+      console.log("Search results:", data)
+      setResults(data.results || [])
+    } catch (error) {
+      console.error("Error during search:", error)
+    } finally {
+      setLoading(false)
     }
-  };
+  }
 
   return (
-    <div className="p-4">
-      <h2 className="text-2xl font-bold mb-4">Image Search (Color Palette)</h2>
+    <div className="container mx-auto py-10 space-y-10">
+      <h1 className="text-3xl font-bold mb-8 text-center">🎨 Image Similarity Search</h1>
 
-      {/* Upload */}
-      <div className="flex items-center gap-2 mb-4">
-        <input
-          type="file"
-          accept="image/*"
-          onChange={handleFileChange}
-          className="border p-2 rounded"
-        />
-        <button
-          onClick={handleSearch}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-        >
-          Search
-        </button>
-      </div>
+      {/* Image Upload & Search Section */}
+      <SearchInterface onSearch={handleSearch} loading={loading} />
 
-      {/* Results */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {results.map(([path, score], i) => (
-          <div key={i} className="border rounded shadow p-2">
-            <p className="text-sm font-semibold">Match {i + 1}</p>
-            <p className="text-xs text-gray-600 mb-2">
-              Similarity Score: {score.toFixed(2)}
-            </p>
-            <img
-              src={`http://localhost:8000/${path}`}
-              alt={`Match ${i + 1}`}
-              className="w-full h-48 object-contain rounded"
-            />
-          </div>
-        ))}
-      </div>
+      {/* Results Display Section */}
+      <SearchResults
+        results={results}
+        searchImage={searchImage}
+        filters={filters}
+        selectedColor={selectedColor}
+        loading={loading}
+      />
     </div>
-  );
+  )
 }
