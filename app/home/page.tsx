@@ -23,14 +23,14 @@ export default function HomePage() {
   const [filters] = useState({
     style: true,
     texture: true,
-    colorPalette: true,
+    color: true,
     emotion: true,
   })
 
   const [weights, setWeights] = useState({
     style: 25,
     texture: 25,
-    colorPalette: 25,
+    color: 25,
     emotion: 25,
   })
 
@@ -80,7 +80,7 @@ export default function HomePage() {
     let newWeights = { ...weights }
 
     if (total === 0) {
-      newWeights = { style: 25, texture: 25, colorPalette: 25, emotion: 25 }
+      newWeights = { style: 25, texture: 25, color: 25, emotion: 25 }
       total = 100
     } else if (total !== 100) {
       newWeights = Object.fromEntries(
@@ -97,7 +97,7 @@ export default function HomePage() {
 
       formData.append("style_weight", String(newWeights.style / 100))
       formData.append("texture_weight", String(newWeights.texture / 100))
-      formData.append("palette_weight", String(newWeights.colorPalette / 100))
+      formData.append("color_weight", String(newWeights.color/ 100))
       formData.append("emotion_weight", String(newWeights.emotion / 100))
 
       const response = await fetch("http://127.0.0.1:8000/search", {
@@ -150,7 +150,7 @@ export default function HomePage() {
   const icons: Record<string, JSX.Element> = {
     style: <Sparkles className="h-5 w-5 text-primary" />,
     texture: <Layers className="h-5 w-5 text-green-500" />,
-    colorPalette: <Palette className="h-5 w-5 text-yellow-500" />,
+    color: <Palette className="h-5 w-5 text-yellow-500" />,
     emotion: <Eye className="h-5 w-5 text-pink-500" />,
   }
 

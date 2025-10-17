@@ -22,7 +22,7 @@ interface SearchResultsProps {
   filters: {
     style: boolean
     texture: boolean
-    colorPalette: boolean
+    color: boolean
     emotion: boolean
   }
   selectedColor: string | null
@@ -30,7 +30,7 @@ interface SearchResultsProps {
   weights?: {
     style: number
     texture: number
-    colorPalette: number
+    color: number
     emotion: number
   }
 }
@@ -74,7 +74,8 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
       .filter(Boolean)
   }
 
-  const featureOrder = ["style", "texture", "colorpalette", "emotion"]
+  // ✅ Updated: use 'color' instead of 'colorpalette'
+  const featureOrder = ["style", "texture", "color", "emotion"]
 
   const scoreColor = (score: number) => {
     if (score >= 80) return "text-green-600"
@@ -85,7 +86,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   const featureIcons: Record<string, string> = {
     style: "🎨",
     texture: "🧱",
-    colorpalette: "🌈",
+    color: "🌈",
     emotion: "😊",
   }
 
@@ -151,8 +152,8 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                     {featureOrder.map((key) => {
                       const f = features.find((x) => x!.key.includes(key))
                       const label =
-                        key === "colorpalette"
-                          ? "Color Palette"
+                        key === "color"
+                          ? "Color"
                           : key.charAt(0).toUpperCase() + key.slice(1)
                       const value = f
                         ? f!.contribution
@@ -175,7 +176,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                                 ? "bg-blue-300"
                                 : key === "texture"
                                 ? "bg-green-300"
-                                : key === "colorpalette"
+                                : key === "color"
                                 ? "bg-yellow-300"
                                 : "bg-pink-300"
                             }`}
