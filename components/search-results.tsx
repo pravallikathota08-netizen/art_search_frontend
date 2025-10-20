@@ -1,9 +1,9 @@
 "use client"
 
-import React, { useRef } from "react"
+import React, { useRef, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 
 interface SearchResult {
   id?: number
@@ -37,11 +37,9 @@ interface SearchResultsProps {
 
 export const SearchResults: React.FC<SearchResultsProps> = ({
   results,
-  searchImage,
   filters,
   selectedColor,
   loading,
-  weights,
 }) => {
   if (loading) return <p className="text-center text-gray-500">🔍 Searching...</p>
   if (!results || (Array.isArray(results) && results.length === 0))
@@ -49,33 +47,15 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
 
   const normalizedResults = Array.isArray(results) ? results : [results]
   const carouselRef = useRef<HTMLDivElement>(null)
+  const [openIndex, setOpenIndex] = useState<number | null>(null)
 
   const scrollLeft = () => {
-    carouselRef.current?.scrollBy({ left: -300, behavior: "smooth" })
+    carouselRef.current?.scrollBy({ left: -400, behavior: "smooth" })
   }
 
   const scrollRight = () => {
-    carouselRef.current?.scrollBy({ left: 300, behavior: "smooth" })
+    carouselRef.current?.scrollBy({ left: 400, behavior: "smooth" })
   }
-
-  const parseMatchReason = (reason: string | undefined) => {
-    if (!reason) return []
-    const regex = /(\w+)\s*([\d.]+)?(?:×|x|weight)?\s*(\d+)?%?/gi
-    const matches = Array.from(reason.matchAll(regex))
-    return matches
-      .map((m) => {
-        const key = m[1]?.toLowerCase()
-        const sim = parseFloat(m[2] || "1")
-        const weight = parseInt(m[3] || "0")
-        if (!key) return null
-        const contribution = Math.round((sim || 1) * (weight || 0))
-        return { key, contribution }
-      })
-      .filter(Boolean)
-  }
-
-  // ✅ Updated: use 'color' instead of 'colorpalette'
-  const featureOrder = ["style", "texture", "color", "emotion"]
 
   const scoreColor = (score: number) => {
     if (score >= 80) return "text-green-600"
@@ -83,24 +63,14 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
     return "text-red-600"
   }
 
-  const featureIcons: Record<string, string> = {
-    style: "🎨",
-    texture: "🧱",
-    color: "🌈",
-    emotion: "😊",
-  }
-
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="text-center space-y-2">
+      <div className="text-center space-y-1">
         <h2 className="text-2xl font-semibold">Search Results</h2>
-        <p className="text-muted-foreground">
-          Found {normalizedResults.length} similar artworks based on:{" "}
-          {Object.keys(filters)
-            .filter((k) => filters[k as keyof typeof filters])
-            .join(", ")}
-          {selectedColor && ` and color ${selectedColor}`}
+        <p className="text-muted-foreground text-sm">
+          Showing {normalizedResults.length} matches based on your selected features
+          {selectedColor ? ` and color ${selectedColor}` : ""}.
         </p>
       </div>
 
@@ -120,14 +90,6 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
           className="flex overflow-x-auto gap-6 pb-4 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-gray-400/50 scroll-smooth"
         >
           {normalizedResults.map((r, i) => {
-            let features = parseMatchReason(r.matchReason)
-            if (features.length === 0 && weights) {
-              features = Object.entries(weights).map(([k, v]) => ({
-                key: k.toLowerCase(),
-                contribution: Math.round(v),
-              }))
-            }
-
             const finalScore = r.score
               ? r.score
               : r.similarity
@@ -137,62 +99,42 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
             return (
               <Card
                 key={i}
-                className="min-w-[260px] sm:min-w-[300px] snap-start shrink-0 border rounded-xl shadow-md hover:shadow-lg transition-all duration-300 bg-white dark:bg-gray-900"
+                className="min-w-[300px] sm:min-w-[360px] snap-start shrink-0 border rounded-xl shadow-md hover:shadow-lg transition-all duration-300 bg-white dark:bg-gray-900"
               >
                 <CardContent className="p-4">
-                  {/* 🎨 Image */}
-                  <img
-                    src={r.filepath || r.imageUrl || ""}
-                    alt={r.filename || `result-${i}`}
-                    className="rounded-lg w-full h-56 object-cover mb-4 shadow-sm"
-                  />
+                  {/* Click-to-enlarge via Dialog */}
+                  <Dialog open={openIndex === i} onOpenChange={(open) => setOpenIndex(open ? i : null)}>
+                    <DialogTrigger asChild>
+                      <img
+                        src={r.filepath || r.imageUrl || ""}
+                        alt={r.filename || `result-${i}`}
+                        className="rounded-lg w-full h-[320px] sm:h-[380px] object-cover mb-4 shadow-sm cursor-zoom-in"
+                        onClick={() => setOpenIndex(i)}
+                      />
+                    </DialogTrigger>
+                    <DialogContent className="max-w-5xl p-0 bg-transparent border-none shadow-none">
+                      <img
+                        src={r.filepath || r.imageUrl || ""}
+                        alt={r.filename || `result-large-${i}`}
+                        className="w-full h-auto rounded-lg object-contain"
+                      />
+                    </DialogContent>
+                  </Dialog>
 
-                  {/* 🧩 Feature Percentages */}
-                  <div className="space-y-3 mb-4">
-                    {featureOrder.map((key) => {
-                      const f = features.find((x) => x!.key.includes(key))
-                      const label =
-                        key === "color"
-                          ? "Color"
-                          : key.charAt(0).toUpperCase() + key.slice(1)
-                      const value = f
-                        ? f!.contribution
-                        : weights?.[key as keyof typeof weights] || 0
-
-                      return (
-                        <div key={key} className="space-y-1">
-                          <div className="flex justify-between items-center text-base">
-                            <span className="font-bold text-gray-900 dark:text-gray-100 tracking-wide flex items-center gap-1">
-                              <span>{featureIcons[key]}</span> {label}
-                            </span>
-                            <span className="font-extrabold text-gray-900 dark:text-gray-50">
-                              {value}%
-                            </span>
-                          </div>
-                          <Progress
-                            value={value}
-                            className={`h-2.5 rounded-full ${
-                              key === "style"
-                                ? "bg-blue-300"
-                                : key === "texture"
-                                ? "bg-green-300"
-                                : key === "color"
-                                ? "bg-yellow-300"
-                                : "bg-pink-300"
-                            }`}
-                          />
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  {/* 🌟 Match Score */}
-                  <div
-                    className={`mt-4 text-lg font-extrabold ${scoreColor(
-                      finalScore
-                    )} tracking-wide text-center`}
-                  >
-                    Match Score: {finalScore.toFixed(2)}%
+                  {/* Overall Similarity Only */}
+                  <div className="mt-2 text-center">
+                    <div
+                      className={`text-lg font-extrabold ${scoreColor(
+                        finalScore
+                      )} tracking-wide`}
+                    >
+                      Similarity: {finalScore.toFixed(2)}%
+                    </div>
+                    {r.filename && (
+                      <div className="mt-1 text-xs text-gray-500 truncate">
+                        {r.filename}
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

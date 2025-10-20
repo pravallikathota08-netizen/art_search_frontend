@@ -2,9 +2,9 @@
 
 import { useState, useCallback } from "react"
 import { useDropzone } from "react-dropzone"
-import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Upload, ImageIcon, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 interface SearchInterfaceProps {
   onSearch: (file: File) => void
@@ -20,22 +20,15 @@ export function SearchInterface({ onSearch, loading }: SearchInterfaceProps) {
     if (file) {
       setSelectedFile(file)
       setPreview(URL.createObjectURL(file))
+      onSearch(file) // ✅ Notify parent immediately
     }
-  }, [])
+  }, [onSearch])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: {
-      "image/*": [".jpeg", ".jpg", ".png", ".gif", ".bmp", ".webp"],
-    },
+    accept: { "image/*": [".jpeg", ".jpg", ".png", ".gif", ".bmp", ".webp"] },
     multiple: false,
   })
-
-  const handleSearch = () => {
-    if (selectedFile) {
-      onSearch(selectedFile)
-    }
-  }
 
   const clearSelection = () => {
     setSelectedFile(null)
@@ -84,6 +77,7 @@ export function SearchInterface({ onSearch, loading }: SearchInterfaceProps) {
                 size="sm"
                 onClick={clearSelection}
                 className="text-muted-foreground hover:text-foreground"
+                disabled={loading}
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -97,20 +91,6 @@ export function SearchInterface({ onSearch, loading }: SearchInterfaceProps) {
             </div>
           </div>
         )}
-
-        {/* Search Button */}
-        <div className="flex justify-center">
-          <Button onClick={handleSearch} disabled={!selectedFile || loading} size="lg" className="px-8">
-            {loading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground mr-2"></div>
-                Searching...
-              </>
-            ) : (
-              "Search Similar Images"
-            )}
-          </Button>
-        </div>
       </div>
     </Card>
   )

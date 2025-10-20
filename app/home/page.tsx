@@ -7,6 +7,8 @@ import { SearchResults } from "@/components/search-results"
 import { Navigation } from "@/components/navigation"
 import { Button } from "@/components/ui/button"
 import { Sparkles, Layers, Palette, Eye } from "lucide-react"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
+
 
 export interface SearchResult {
   imageUrl: string
@@ -14,6 +16,10 @@ export interface SearchResult {
   matchReason?: string
   similarity: number
   score?: number
+  id?: number
+  filename?: string
+  filepath?: string
+  message?: string
 }
 
 export default function HomePage() {
@@ -26,47 +32,23 @@ export default function HomePage() {
     color: true,
     emotion: true,
   })
-
   const [weights, setWeights] = useState({
     style: 25,
     texture: 25,
     color: 25,
     emotion: 25,
   })
-
-  const [colors, setColors] = useState<string[]>([])
-  const [selectedColor, setSelectedColor] = useState<string | null>(null)
   const [lastFile, setLastFile] = useState<File | null>(null)
   const [totalWarning, setTotalWarning] = useState(false)
 
   const token =
     typeof window !== "undefined" ? localStorage.getItem("auth-token") : null
 
-  // 🎨 Extract Palette
-  const handleExtractPalette = async (file: File) => {
-    if (!token) return
-    const formData = new FormData()
-    formData.append("file", file)
-    try {
-      const res = await fetch("http://127.0.0.1:8000/palette/extract", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setColors(data.colors || [])
-      }
-    } catch (e) {
-      console.error("Palette extract error", e)
-    }
-  }
-
-  // 🧠 Run Search
-  const runSearch = async (file?: File, color?: string) => {
+  // 🧠 Run Search (single entry point)
+  const runSearch = async (file?: File) => {
     if (!token || !lastFile) return
 
-    // 🧩 Ensure at least one filter
+    // Ensure at least one filter is active (kept for future toggles)
     const activeFilters = Object.keys(filters).filter(
       (key) => filters[key as keyof typeof filters]
     )
@@ -75,10 +57,9 @@ export default function HomePage() {
       return
     }
 
-    // ⚖️ Normalize weights to 100 %
+    // Normalize weights to 100%
     let total = Object.values(weights).reduce((s, v) => s + v, 0)
     let newWeights = { ...weights }
-
     if (total === 0) {
       newWeights = { style: 25, texture: 25, color: 25, emotion: 25 }
       total = 100
@@ -93,12 +74,13 @@ export default function HomePage() {
     try {
       const formData = new FormData()
       formData.append("file", file || lastFile)
-      if (color) formData.append("selected_color", color)
 
+      // Backend expects weights as 0..1 floats
       formData.append("style_weight", String(newWeights.style / 100))
       formData.append("texture_weight", String(newWeights.texture / 100))
-      formData.append("color_weight", String(newWeights.color/ 100))
+      formData.append("color_weight", String(newWeights.color / 100))
       formData.append("emotion_weight", String(newWeights.emotion / 100))
+      // We don't send selected_color anymore (palette section removed)
 
       const response = await fetch("http://127.0.0.1:8000/search", {
         method: "POST",
@@ -120,17 +102,11 @@ export default function HomePage() {
     }
   }
 
+  // Handle upload from SearchInterface (preview kept there)
   const handleSearch = async (file: File) => {
     setLastFile(file)
     setSearchImage(URL.createObjectURL(file))
-    await handleExtractPalette(file)
     setSearchResults([])
-  }
-
-  const handleColorClick = async (color: string | null) => {
-    setSelectedColor(color)
-    if (color) await runSearch(undefined, color)
-    else await runSearch()
   }
 
   // 🎚 Total weight guard
@@ -147,11 +123,12 @@ export default function HomePage() {
 
   const totalSelected = Object.values(weights).reduce((s, v) => s + v, 0)
 
+  // Shared icons map (for consistency if needed later)
   const icons: Record<string, JSX.Element> = {
-    style: <Sparkles className="h-5 w-5 text-primary" />,
-    texture: <Layers className="h-5 w-5 text-green-500" />,
-    color: <Palette className="h-5 w-5 text-yellow-500" />,
-    emotion: <Eye className="h-5 w-5 text-pink-500" />,
+    style: <Sparkles className="h-4 w-4 text-primary" />,
+    texture: <Layers className="h-4 w-4 text-green-600" />,
+    color: <Palette className="h-4 w-4 text-yellow-600" />,
+    emotion: <Eye className="h-4 w-4 text-pink-600" />,
   }
 
   return (
@@ -159,7 +136,7 @@ export default function HomePage() {
       <div className="min-h-screen flex flex-col">
         <Navigation />
         <main className="flex-1 container mx-auto px-2 sm:px-4 py-6 sm:py-8 relative">
-          <div className="max-w-6xl mx-auto space-y-10">
+          <div className="max-w-6xl mx-auto space-y-8">
             {/* Header */}
             <div className="text-center space-y-2">
               <h1 className="text-3xl font-bold">🎨 AI Art Search</h1>
@@ -168,26 +145,46 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* Upload */}
+            {/* Upload (no search button here; only one main Search button below) */}
             <SearchInterface onSearch={handleSearch} loading={loading} />
 
-            {/* Filters + Weights */}
+            {/* Filters (compact) + Single Search button */}
             {lastFile && (
-              <div className="space-y-8">
-                <h3 className="text-xl font-semibold">🎛️ Adjust Feature Weights</h3>
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">🎛️ Feature Weights</h3>
+                  <p className="text-xs text-gray-500">
+                    Total: {totalSelected}%{" "}
+                    {totalWarning && (
+                      <span className="text-red-500 ml-2 font-medium">⚠ Max 100%</span>
+                    )}
+                  </p>
+                </div>
 
-                {Object.entries(weights).map(([key, value]) => (
-                  <div key={key} className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {icons[key]}
-                        <label className="capitalize font-medium">{key}</label>
-                      </div>
-                      <span className="text-sm text-gray-500">{value}%</span>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {Object.entries(weights).map(([key, value]) => (
+                    <div key={key} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        {/* 🧠 Tooltip around label */}
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-2 text-sm cursor-help">
+                            {icons[key]}
+                            <label className="capitalize">{key}</label>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          {key === "style" && "The overall artistic movement (e.g., Impressionism, Cubism)."}
+                          {key === "texture" && "Surface detail, brushstroke density, or roughness in the image."}
+                          {key === "color" && "Dominant hue palette and tone composition of the artwork."}
+                          {key === "emotion" && "Mood or emotion expressed visually through color and subject."}
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <span className="text-xs text-gray-500">{value}%</span>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">0%</span>
                       <input
                         type="range"
                         min={0}
@@ -196,60 +193,22 @@ export default function HomePage() {
                         onChange={(e) => updateWeight(key, parseInt(e.target.value, 10))}
                         className="w-full accent-primary"
                       />
-                      <span className="text-xs text-gray-400">100%</span>
-                    </div>
                   </div>
-                ))}
+                </div>
+              ))}
+            </div>
 
-                <p className="text-sm font-semibold">
-                  Total: {totalSelected}%{" "}
-                  {totalWarning && (
-                    <span className="text-red-500 ml-2 font-medium">⚠ Cannot exceed 100%</span>
-                  )}
-                </p>
-
-                {/* 🎨 Color Palette */}
-                {colors.length > 0 && (
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold flex items-center gap-2">
-                      <Palette className="h-5 w-5 text-yellow-500" /> Choose a Color Palette
-                    </h3>
-                    <div className="flex overflow-x-auto gap-4 py-2 scroll-smooth">
-                      <div
-                        onClick={() => handleColorClick(null)}
-                        className={`w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-full border ${
-                          selectedColor === null ? "border-4 border-black" : "border-gray-300"
-                        } cursor-pointer bg-white text-xs font-medium`}
-                      >
-                        None
-                      </div>
-
-                      {colors.map((color) => (
-                        <div
-                          key={color}
-                          onClick={() => handleColorClick(color)}
-                          className={`flex-shrink-0 rounded-full cursor-pointer transition-transform duration-200 ${
-                            selectedColor === color
-                              ? "ring-4 ring-black scale-110"
-                              : "ring-1 ring-gray-300 hover:scale-105"
-                          }`}
-                          style={{ backgroundColor: color, width: "40px", height: "40px" }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 <Button
                   onClick={() => runSearch()}
                   disabled={loading}
-                  className="w-full mt-4"
+                  className="w-full mt-2"
                 >
                   {loading
                     ? "Searching..."
                     : totalSelected !== 100
                     ? `Search (auto-normalizing ${totalSelected}%)`
-                    : "🔍 Search with Selected Filters"}
+                    : "🔍 Search"}
                 </Button>
               </div>
             )}
@@ -262,19 +221,20 @@ export default function HomePage() {
                     <img
                       src={searchImage}
                       alt="Query"
-                      className="w-32 h-32 object-cover rounded-md shadow-md"
+                      className="w-40 h-40 object-cover rounded-md shadow-md"
                     />
                     <p className="text-sm mt-2 text-gray-500">Uploaded Image</p>
                   </div>
                 )}
+
                 <div className="lg:w-3/4">
                   <SearchResults
                     results={searchResults}
                     searchImage={searchImage}
                     filters={filters}
-                    selectedColor={selectedColor}
+                    selectedColor={null}       
                     loading={loading}
-                    weights={weights} // ✅ Pass weights
+                    // weights not shown in results anymore
                   />
                 </div>
               </div>
